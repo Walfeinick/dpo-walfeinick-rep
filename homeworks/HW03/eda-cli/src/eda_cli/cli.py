@@ -67,6 +67,8 @@ def report(
     sep: str = typer.Option(",", help="Разделитель в CSV."),
     encoding: str = typer.Option("utf-8", help="Кодировка файла."),
     max_hist_columns: int = typer.Option(6, help="Максимум числовых колонок для гистограмм."),
+    title: str = typer.Option("Отчет", help="Заголовок отчета"),
+    min_missing_share: float = typer.Option(None, help="Порог доли пропусков, выше которого колонка считается проблемной."),
 ) -> None:
     """
     Сгенерировать полный EDA-отчёт:
@@ -75,6 +77,10 @@ def report(
     - корреляционная матрица;
     - top-k категорий по категориальным признакам;
     - картинки: гистограммы, матрица пропусков, heatmap корреляции.
+    Необязательные параметры:
+    max_hist_columns - Максимум числовых колонок для гистограмм. По умолчанию 6.
+    min_missing_share - Порог доли пропусков, выше которого колонка считается проблемной. По умолчанию нет.
+    title - Название отчёта. По умолчанию "Отчет".
     """
     out_root = Path(out_dir)
     out_root.mkdir(parents=True, exist_ok=True)
@@ -89,7 +95,9 @@ def report(
     top_cats = top_categories(df)
 
     # 2. Качество в целом
-    quality_flags = compute_quality_flags(summary, missing_df)
+    quality_flags = compute_quality_flags(summary, missing_df, df)
+    # Проблемные колонки по доле пропусков
+    problematic_cols = missing_df[missing_df["missing_share"] > min_missing_share].index.tolist()
 
     # 3. Сохраняем табличные артефакты
     summary_df.to_csv(out_root / "summary.csv", index=False)
@@ -102,7 +110,7 @@ def report(
     # 4. Markdown-отчёт
     md_path = out_root / "report.md"
     with md_path.open("w", encoding="utf-8") as f:
-        f.write(f"# EDA-отчёт\n\n")
+        f.write(f"# {title}\n\n") #обновлено
         f.write(f"Исходный файл: `{Path(path).name}`\n\n")
         f.write(f"Строк: **{summary.n_rows}**, столбцов: **{summary.n_cols}**\n\n")
 
@@ -112,6 +120,17 @@ def report(
         f.write(f"- Слишком мало строк: **{quality_flags['too_few_rows']}**\n")
         f.write(f"- Слишком много колонок: **{quality_flags['too_many_columns']}**\n")
         f.write(f"- Слишком много пропусков: **{quality_flags['too_many_missing']}**\n\n")
+        # мои эвристики
+        f.write(f"- Дубликаты id: **{quality_flags['duplicate_ids']}**\n")
+        f.write(f"- Повторяющиеся колонки: **{quality_flags['constant_columns']}**\n")
+        # проблемные колонки
+        if min_missing_share is not None:
+            problematic_cols = missing_df[missing_df["missing_share"] > min_missing_share].index.tolist()
+        if problematic_cols:
+            f.write("\n### Колонки с высокой долей пропусков (превышает порог min_missing_share)\n")
+            f.write(", ".join(problematic_cols) + "\n\n")
+        else:
+            f.write("\nНет колонок с пропусками выше заданного порога min_missing_share.\n\n")
 
         f.write("## Колонки\n\n")
         f.write("См. файл `summary.csv`.\n\n")
@@ -136,7 +155,6 @@ def report(
 
         f.write("## Гистограммы числовых колонок\n\n")
         f.write("См. файлы `hist_*.png`.\n")
-
     # 5. Картинки
     plot_histograms_per_column(df, out_root, max_columns=max_hist_columns)
     plot_missing_matrix(df, out_root / "missing_matrix.png")

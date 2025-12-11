@@ -170,7 +170,7 @@ def top_categories(
     return result
 
 
-def compute_quality_flags(summary: DatasetSummary, missing_df: pd.DataFrame) -> Dict[str, Any]:
+def compute_quality_flags(summary: DatasetSummary, missing_df: pd.DataFrame, df: pd.DataFrame) -> Dict[str, Any]:
     """
     Простейшие эвристики «качества» данных:
     - слишком много пропусков;
@@ -185,6 +185,18 @@ def compute_quality_flags(summary: DatasetSummary, missing_df: pd.DataFrame) -> 
     flags["max_missing_share"] = max_missing_share
     flags["too_many_missing"] = max_missing_share > 0.5
 
+    #новые флаги (мои)
+    constant_cols = [
+        col for col in df.columns
+        if df[col].nunique(dropna=False) <= 1
+    ]
+    flags["constant_columns"] = len(constant_cols)
+
+    id_cols = [col for col in df.columns if "id" in col.lower()] #все столыбцы с айди
+    flags["duplicate_ids"] = sum(df[col].duplicated().sum() for col in id_cols) if id_cols else 0
+
+    min_missing_share = float(missing_df["missing_share"].min()) if not missing_df.empty else 0.0
+    flags["max_missing_share"] = min_missing_share
     # Простейший «скор» качества
     score = 1.0
     score -= max_missing_share  # чем больше пропусков, тем хуже

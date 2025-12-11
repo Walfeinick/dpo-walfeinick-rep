@@ -44,7 +44,7 @@ def test_missing_table_and_quality_flags():
     assert missing_df.loc["age", "missing_count"] == 1
 
     summary = summarize_dataset(df)
-    flags = compute_quality_flags(summary, missing_df)
+    flags = compute_quality_flags(summary, missing_df,df)
     assert 0.0 <= flags["quality_score"] <= 1.0
 
 
@@ -59,3 +59,29 @@ def test_correlation_and_top_categories():
     city_table = top_cats["city"]
     assert "value" in city_table.columns
     assert len(city_table) <= 2
+
+#мои тесты
+def test_constant_collums_flag():
+    data = pd.DataFrame({
+        "some_id": [1, 2, 3, 4],
+        "const_col": [1,1,1,1],
+        "some_normal_col": [10, 21, 32, 43]
+    })
+    summary = summarize_dataset(data)
+    missing_df = missing_table(data)
+    flags = compute_quality_flags(summary, missing_df, data)
+    assert flags["constant_columns"] == 1
+
+
+def test_duplicate_ids_flag():
+    df = pd.DataFrame({
+        "user_id": [1, 1, 2, 3],      # дубликаты
+        "manager_id": [10, 11, 10, 12],
+        "normal_col": [5, 6, 7, 8]
+    })
+
+    summary = summarize_dataset(df)
+    missing_df = missing_table(df)
+    flags = compute_quality_flags(summary, missing_df, df)
+
+    assert flags["duplicate_ids"] == 2
