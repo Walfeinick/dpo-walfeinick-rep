@@ -57,3 +57,132 @@ uv run eda-cli report data/example.csv --out-dir reports
 ```bash
 uv run pytest -q
 ```
+## HTTP сервер
+
+/health — проверка работоспособности сервиса
+
+Пример запроса:
+```bash
+GET /health
+```
+
+Пример ответа:
+```bash
+{
+  "status": "ok",
+  "service": "dataset-quality",
+  "version": "0.2.0"
+}
+```
+
+POST/quality — оценка качества по агрегированным признакам
+Принимает агрегированные признаки датасета и возвращает эвристическую оценку качества.
+
+Параметры запроса:
+```bash
+{
+  "n_rows": 1500,
+  "n_cols": 10,
+  "max_missing_share": 0.2,
+  "numeric_cols": 7,
+  "categorical_cols": 3
+}
+```
+
+Пример ответа:
+```bash
+{
+  "ok_for_model": true,
+  "quality_score": 0.85,
+  "message": "Данных достаточно, модель можно обучать (по текущим эвристикам).",
+  "latency_ms": 5.2,
+  "flags": 
+  {
+    "too_few_rows": false,
+    "too_many_columns": false,
+    "too_many_missing": false,
+    "no_numeric_columns": false,
+    "no_categorical_columns": false
+  },
+  "dataset_shape":
+   {
+    "n_rows": 1500,
+    "n_cols": 10
+    }
+}
+```
+
+POST/quality-from-csv — оценка качества по CSV
+Загружает CSV-файл, считает статистики через EDA и возвращает оценку качества.
+
+Параметры запроса:  
+Multipart/form-data
+file: CSV-файл
+
+
+Пример ответа:
+```bash
+{
+  "ok_for_model": false,
+  "quality_score": 0.65,
+  "message": "CSV требует доработки перед обучением модели (по текущим эвристикам).",
+  "latency_ms": 12.4,
+  "flags": 
+  {
+    "too_few_rows": true,
+    "too_many_columns": false,
+    "too_many_missing": true,
+    "no_numeric_columns": false,
+    "no_categorical_columns": false
+  },
+  "dataset_shape": 
+  {
+    "n_rows": 50,
+    "n_cols": 12
+  }
+}
+```
+
+POST/quality-flags-from-csv — полный набор флагов качества
+Загружает CSV файл и возвращает все эвристические флаги качества.
+
+Параметры запроса: 
+Multipart/form-data
+file: CSV-файл
+
+Пример ответа:
+```bash
+{
+  "flags": 
+  {
+    "too_few_rows": false,
+    "too_many_columns": false,
+    "too_many_missing": true,
+    "has_constant_columns": false,
+    "has_suspicious_id_duplicates": true,
+    "has_many_zero_values": true
+  }
+}
+```
+
+POST/head — первые n строк CSV
+Описание: Возвращает первые n строк загруженного CSV.
+
+Параметры запроса: Multipart/form-data + query
+file: CSV-файл
+n (query, default=5): количество строк
+
+Пример ответа:
+```bash
+{
+  "rows": [
+    {
+        "col1": 1, "col2": "A"
+    },
+    {
+        "col1": 2, "col2": "B"
+    },
+    ...
+  ]
+}
+```
